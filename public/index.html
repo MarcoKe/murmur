@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>murmur · noise, shaped to your room</title>
+<meta name="description" content="Make the noise you need: white, pink, brown and anything between, shaped by hand or to the sound of your room. Share it as a link. Runs in your browser; the microphone is never recorded.">
+<meta name="theme-color" content="#0c0e13">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="top">
+	<a class="brand" href="./" aria-label="murmur">
+		<svg viewBox="0 0 48 24" width="44" height="22" aria-hidden="true"><path d="M2 12c4 0 4-8 8-8s4 16 8 16 4-12 8-12 4 8 8 8 4-4 8-4 3 0 4 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+		<span>murmur</span>
+	</a>
+	<p class="tagline">noise, shaped to your room</p>
+	<label class="switch" title="Show the technical controls">
+		<input type="checkbox" id="advanced"><span class="track"></span><span>Advanced</span>
+	</label>
+</header>
+
+<main>
+	<div id="unsupported" class="notice" hidden></div>
+	<div id="shared" class="notice" hidden>
+		<span id="shared-text"></span>
+		<span class="row">
+			<button type="button" id="shared-save" class="btn small">Save to My sounds</button>
+			<button type="button" id="shared-back" class="btn small ghost">Back to my last sound</button>
+			<button type="button" id="shared-close" class="btn small ghost" aria-label="Dismiss">✕</button>
+		</span>
+	</div>
+
+	<section class="stage" aria-label="Sound">
+		<div class="graph-wrap">
+			<canvas id="graph" role="img"></canvas>
+			<div class="legend" aria-hidden="true">
+				<span class="key sound">the sound</span>
+				<span class="key other" id="legend-other" hidden></span>
+				<span class="key all" id="legend-all" hidden>all layers</span>
+				<span class="key live">playing now</span>
+				<span class="key room" id="legend-room" hidden>your room</span>
+			</div>
+			<div id="mic" class="mic" hidden><span class="dot"></span><span id="mic-text"></span><button type="button" id="mic-stop" class="btn small">Stop</button></div>
+		</div>
+		<div class="transport">
+			<button type="button" id="play" class="play" aria-pressed="false" aria-label="Play">
+				<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path class="i-play" d="M8 5.5v13l11-6.5z"/><path class="i-pause" d="M7 5h3.6v14H7zM13.4 5H17v14h-3.6z"/></svg>
+			</button>
+			<div class="what">
+				<input id="name" class="name" type="text" maxlength="40" spellcheck="false" autocomplete="off" aria-label="Name of the sound" placeholder="Untitled sound">
+				<div class="sub"><span id="summary"></span><button type="button" id="timer-chip" class="chip-status" hidden></button></div>
+			</div>
+			<label class="volume" title="Volume">
+				<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" fill="currentColor"/><path d="M15 9a4.2 4.2 0 0 1 0 6M17.6 6.5a8 8 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+				<input id="volume" type="range" min="0" max="1" step="0.01" aria-label="Volume">
+			</label>
+		</div>
+	</section>
+
+	<nav class="tabs" role="tablist" aria-label="Tools">
+		<button role="tab" data-tab="sounds" id="t-sounds">Sounds</button>
+		<button role="tab" data-tab="shape" id="t-shape">Shape</button>
+		<button role="tab" data-tab="room" id="t-room">Room</button>
+		<button role="tab" data-tab="tinnitus" id="t-tinnitus">Tinnitus</button>
+		<button role="tab" data-tab="timer" id="t-timer">Timer</button>
+		<button role="tab" data-tab="share" id="t-share">Share</button>
+	</nav>
+
+	<section class="panel" id="p-sounds" role="tabpanel" aria-labelledby="t-sounds">
+		<div id="builtins"></div>
+		<div class="group">
+			<h3>My sounds</h3>
+			<div class="chips" id="mine"></div>
+			<p class="hint" id="mine-empty">Nothing saved yet. Sounds you save stay in this browser.</p>
+			<button type="button" id="save" class="btn">Save this sound</button>
+		</div>
+	</section>
+
+	<section class="panel" id="p-shape" role="tabpanel" aria-labelledby="t-shape" hidden>
+		<p class="hint">Drag on the graph to bend the curve: up for more of those frequencies, down for less.</p>
+		<div class="chips" id="layers" role="group" aria-label="Layers"></div>
+		<div id="layer-controls"></div>
+	</section>
+
+	<section class="panel" id="p-room" role="tabpanel" aria-labelledby="t-room" hidden>
+		<p>Let murmur listen to your room for a few seconds. It draws what it hears on the graph and builds a noise
+		that sits exactly on top of it, so the sounds that bother you blend in at the lowest volume that works.</p>
+		<p class="hint">Noise from a speaker can cover a sound, not cancel it. The microphone is analysed here in your
+		browser, as loudness per frequency; nothing is recorded, stored or sent anywhere.</p>
+		<div id="room-problem" class="notice" hidden></div>
+		<div id="room-start" class="row">
+			<button type="button" id="room-listen" class="btn primary">Listen to the room</button>
+			<label class="inline">for <select id="room-seconds"><option value="10">10 s</option><option value="20" selected>20 s</option><option value="30">30 s</option></select></label>
+		</div>
+		<div id="room-progress" hidden>
+			<div class="bar"><div id="room-bar"></div></div>
+			<p class="hint" id="room-status"></p>
+		</div>
+		<div id="room-result" hidden>
+			<p id="room-heard"></p>
+			<div class="control"><label for="room-strength">How closely the mask follows the room</label>
+				<input id="room-strength" type="range" min="0" max="1.5" step="0.05" value="1"><output id="room-strength-out"></output></div>
+			<label class="check"><input type="checkbox" id="room-voices"> Extra cover where voices are</label>
+			<div class="row">
+				<button type="button" id="room-new" class="btn primary">Use as a new sound</button>
+				<button type="button" id="room-add" class="btn">Add to the current sound</button>
+			</div>
+			<p class="hint">Then set the volume so the room's sounds just blend in. Louder is not better.</p>
+		</div>
+		<div class="group">
+			<h3>Follow the room <span class="tag">headphones only</span></h3>
+			<p class="hint">While this is on, murmur keeps listening and lifts the mask a little when the room gets louder,
+			then lets it sink back. With speakers the microphone would hear the mask itself, so murmur checks that first.</p>
+			<label class="check"><input type="checkbox" id="adapt"> Follow the room while playing</label>
+			<p class="hint" id="adapt-status" role="status"></p>
+		</div>
+	</section>
+
+	<section class="panel" id="p-tinnitus" role="tabpanel" aria-labelledby="t-tinnitus" hidden>
+		<p>Many people with tinnitus find it easier to live with when there is a soft sound around it. Two kinds are
+		common: noise with a gap around your tone, and a narrow band of noise right on it. Find your tone, then try both.</p>
+		<p class="hint">This is for comfort, not treatment, and murmur is not a medical device. Keep the sound quieter than
+		your tinnitus rather than drowning it. If tinnitus is new, one-sided or worsening, see a doctor.</p>
+		<div class="group">
+			<h3>1. Find your tone</h3>
+			<div class="row">
+				<button type="button" id="tone-play" class="btn primary" aria-pressed="false">Play the tone</button>
+				<output id="tone-out" class="big"></output>
+			</div>
+			<div class="control"><label for="tone-f">Pitch</label>
+				<input id="tone-f" type="range" min="0" max="1000" step="1"><span class="steps"><button type="button" id="tone-down" class="btn small" aria-label="Slightly lower">−</button><button type="button" id="tone-up" class="btn small" aria-label="Slightly higher">+</button></span></div>
+			<div class="control"><label for="tone-level">Tone volume</label>
+				<input id="tone-level" type="range" min="0" max="1" step="0.01" value="0.3"><span></span></div>
+			<p class="hint">Start quiet. Move the pitch until the tone matches what you hear.</p>
+		</div>
+		<div class="group">
+			<h3>2. Check the octave</h3>
+			<p class="hint">Ears easily settle on a tone one octave off. Compare these three, then keep the closest.</p>
+			<div class="row" id="tone-octaves"></div>
+		</div>
+		<div class="group">
+			<h3>3. Make the sound</h3>
+			<div class="row">
+				<button type="button" id="tone-notch" class="btn">Noise with a gap at my tone</button>
+				<button type="button" id="tone-band" class="btn">Narrow band on my tone</button>
+			</div>
+		</div>
+	</section>
+
+	<section class="panel" id="p-timer" role="tabpanel" aria-labelledby="t-timer" hidden>
+		<div class="group">
+			<h3>Sleep</h3>
+			<p class="hint">The sound fades out slowly at the end, so the silence does not wake you.</p>
+			<div class="row" id="sleep-buttons"></div>
+			<div class="row">
+				<label class="inline">or <input id="sleep-custom" type="number" min="1" max="720" step="1" inputmode="numeric" placeholder="min"> minutes</label>
+				<button type="button" id="sleep-start" class="btn">Start</button>
+				<button type="button" id="night" class="btn ghost">Dark screen</button>
+			</div>
+		</div>
+		<div class="group">
+			<h3>Focus</h3>
+			<p class="hint">Work and break in turns. No beep: in the break the sound steps back, and when it returns the break is over.</p>
+			<div class="row">
+				<label class="inline">Work <input id="focus-work" type="number" min="1" max="180" value="25" inputmode="numeric"> min</label>
+				<label class="inline">Break <input id="focus-break" type="number" min="1" max="60" value="5" inputmode="numeric"> min</label>
+				<button type="button" id="focus-start" class="btn">Start</button>
+			</div>
+		</div>
+		<div class="row"><output id="timer-status" class="big" role="status"></output><button type="button" id="timer-cancel" class="btn ghost" hidden>Cancel timer</button></div>
+	</section>
+
+	<section class="panel" id="p-share" role="tabpanel" aria-labelledby="t-share" hidden>
+		<div class="share-grid">
+			<div>
+				<p>The whole sound fits in this link. Whoever opens it hears exactly what you hear; nothing is uploaded.</p>
+				<div class="row link">
+					<input id="link" type="text" readonly aria-label="Link to this sound">
+					<button type="button" id="copy" class="btn primary">Copy</button>
+					<button type="button" id="share-native" class="btn" hidden>Share …</button>
+				</div>
+				<p class="hint" id="link-note" hidden></p>
+			</div>
+			<div class="qr" id="qr" role="img" aria-label="QR code of the link"></div>
+		</div>
+		<div class="group">
+			<h3>As a file</h3>
+			<div class="row">
+				<button type="button" id="export-json" class="btn">Save sound file</button>
+				<button type="button" id="import-json" class="btn">Open sound file …</button>
+				<input type="file" id="import-file" accept=".json,.murmur,application/json" hidden>
+			</div>
+			<div class="row">
+				<button type="button" id="export-wav" class="btn">Save as audio (WAV)</button>
+				<label class="inline">length <select id="wav-seconds"><option value="30">30 s</option><option value="120" selected>2 min</option><option value="300">5 min</option></select></label>
+				<span class="hint" id="wav-status" role="status"></span>
+			</div>
+			<p class="hint">The audio file loops without a seam, for music players and alarm apps.</p>
+		</div>
+	</section>
+</main>
+
+<footer>
+	<p>Keep it quiet: a mask works best just loud enough to blend sounds in. Hours of loud noise tire the ears.</p>
+	<p>Everything runs in your browser. No account, no tracking; your sounds are stored on this device only.
+	<a href="vendor/qrcode/LICENSE">Third-party license</a></p>
+	<p><a href="impressum.html">Impressum / Legal notice</a> · <a href="privacy.html">Datenschutz / Privacy</a></p>
+</footer>
+
+<div id="night-screen" hidden><div><div id="night-clock"></div><div id="night-timer"></div><div class="hint">tap to wake the screen</div></div></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="announce" class="sr" aria-live="polite"></div>
+
+<script src="js/old.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
